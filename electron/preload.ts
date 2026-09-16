@@ -1,14 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AiProviderConfig, AiStreamEvent, ModelInfo } from '../src/ai'
-import type { AppInfo, DesktopCommand, Draft, FileDocument, Preferences, SaveRequest } from '../src/shared/desktop'
+import type { AppInfo, DesktopCommand, Draft, FileDocument, Preferences, SaveRequest, WorkspaceEntry, WorkspaceInfo, RestoredDraft } from '../src/shared/desktop'
 import type { SettingsView } from './settings'
 
 const api = {
   getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke('app:get-info'),
   openMarkdown: (): Promise<FileDocument | undefined> => ipcRenderer.invoke('dialog:open-markdown'),
   saveMarkdown: (request: SaveRequest): Promise<FileDocument | undefined> => ipcRenderer.invoke('dialog:save-markdown', request),
+  /** Documents under the default C:\\Users\\<user>\\Documents\\Markz workspace. */
+  listWorkspace: (): Promise<WorkspaceEntry[]> => ipcRenderer.invoke('workspace:list'),
+  getWorkspace: (): Promise<WorkspaceInfo> => ipcRenderer.invoke('workspace:get'),
+  showWorkspaceFolder: (): Promise<void> => ipcRenderer.invoke('workspace:show'),
+  createWorkspaceDocument: (name?: string, content?: string): Promise<FileDocument> => ipcRenderer.invoke('workspace:create', { name, content }),
+  openWorkspaceDocument: (filePath: string): Promise<FileDocument> => ipcRenderer.invoke('workspace:open', filePath),
+  renameWorkspaceDocument: (filePath: string, name: string): Promise<string> => ipcRenderer.invoke('workspace:rename', { filePath, name }),
+  deleteWorkspaceDocument: (filePath: string): Promise<boolean> => ipcRenderer.invoke('workspace:delete', filePath),
   exportHtml: (html: string): Promise<string | undefined> => ipcRenderer.invoke('dialog:export-html', html),
   confirmDiscard: (): Promise<boolean> => ipcRenderer.invoke('dialog:confirm-discard'),
+  confirmDocumentSwitch: (): Promise<'save' | 'discard' | 'cancel'> => ipcRenderer.invoke('dialog:document-switch'),
   setDirty: (value: boolean): Promise<void> => ipcRenderer.invoke('document:dirty', value),
   getSettings: (): Promise<SettingsView> => ipcRenderer.invoke('settings:get'),
   savePreferences: (value: Preferences): Promise<SettingsView> => ipcRenderer.invoke('settings:preferences', value),
@@ -18,6 +27,7 @@ const api = {
   saveDraft: (draft: Draft): Promise<void> => ipcRenderer.invoke('draft:save', draft),
   closeAfterRecovery: (draft: Draft): Promise<void> => ipcRenderer.invoke('app:close-ready', draft),
   readDraft: (): Promise<Draft | undefined> => ipcRenderer.invoke('draft:read'),
+  restoreDraft: (): Promise<RestoredDraft | undefined> => ipcRenderer.invoke('draft:restore'),
   listModels: (config: AiProviderConfig): Promise<ModelInfo[]> => ipcRenderer.invoke('ai:models', config),
   testConnection: (config: AiProviderConfig): Promise<unknown> => ipcRenderer.invoke('ai:test', config),
   generate: (request: { id: string; prompt: string; sourceText: string }): Promise<void> => ipcRenderer.invoke('ai:generate', request),

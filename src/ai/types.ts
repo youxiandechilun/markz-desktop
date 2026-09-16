@@ -45,6 +45,8 @@ export interface AiUsage {
 
 export type AiStreamEvent =
   | { type: 'delta'; text: string }
+  /** Reasoning/thinking tokens. They are progress, never document content. */
+  | { type: 'reasoning'; text: string }
   | { type: 'done'; finishReason?: string; usage?: AiUsage; truncated: boolean }
   | { type: 'error'; error: AiError }
 

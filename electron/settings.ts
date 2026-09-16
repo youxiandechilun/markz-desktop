@@ -9,7 +9,7 @@ import type { Draft, Preferences } from '../src/shared/desktop'
 export interface PublicProvider extends Omit<AiProviderConfig, 'apiKey'> { hasApiKey: boolean }
 export interface SettingsView { preferences: Preferences; providers: PublicProvider[]; activeProviderId?: string }
 interface StoredSettings { preferences: Preferences; providers: AiProviderConfig[]; activeProviderId?: string; keys: Record<string, string> }
-const defaults: Preferences = { locale: 'zh-CN', theme: 'dark' }
+const defaults: Preferences = { locale: 'zh-CN', theme: 'light', autoSave: true, wordWrap: true, editorFontSize: 14, editorFontFamily: 'mono' }
 
 export class SettingsService {
   private value: StoredSettings = { preferences: defaults, providers: [], keys: {} }
@@ -82,7 +82,7 @@ export class SettingsService {
   }
   async saveDraft(input: unknown): Promise<void> {
     if (!input || typeof input !== 'object' || !('content' in input)) throw new Error('DRAFT_INVALID')
-    const draft: Draft = { content: requireText(input.content), filePath: 'filePath' in input && typeof input.filePath === 'string' ? input.filePath : undefined, fingerprint: 'fingerprint' in input && typeof input.fingerprint === 'string' ? input.fingerprint : undefined }
+    const draft = parseDraft(input)
     const content = JSON.stringify(draft)
     this.draftQueue = this.draftQueue.catch(() => undefined).then(() => atomicWrite(join(this.directory, 'recovery.json'), content))
     await this.draftQueue
@@ -91,7 +91,7 @@ export class SettingsService {
     try {
       const raw: unknown = JSON.parse(await readFile(join(this.directory, 'recovery.json'), 'utf8'))
       if (!raw || typeof raw !== 'object' || !('content' in raw)) return undefined
-      return { content: requireText(raw.content) }
+      return parseDraft(raw)
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
       throw new Error('RECOVERY_READ: 无法读取恢复草稿 / Cannot read recovery draft')
@@ -100,5 +100,31 @@ export class SettingsService {
 }
 export function parsePreferences(value: unknown): Preferences {
   if (!value || typeof value !== 'object' || !('locale' in value) || !('theme' in value) || !['zh-CN', 'en'].includes(String(value.locale)) || !['light', 'dark'].includes(String(value.theme))) throw new Error('PREFERENCES_INVALID')
-  return { locale: value.locale === 'en' ? 'en' : 'zh-CN', theme: value.theme === 'light' ? 'light' : 'dark' }
+  if ('autoSave' in value && typeof value.autoSave !== 'boolean') throw new Error('PREFERENCES_INVALID')
+  // Later fields are additive: a missing value keeps the safe default so an existing
+  // installation reads and rewrites its settings without a migration step.
+  return {
+    locale: value.locale === 'en' ? 'en' : 'zh-CN',
+    theme: value.theme === 'light' ? 'light' : 'dark',
+    autoSave: !('autoSave' in value) || value.autoSave !== false,
+    wordWrap: !('wordWrap' in value) || value.wordWrap !== false,
+    editorFontSize: parseFontSize(value),
+    editorFontFamily: parseFontFamily(value),
+  }
+}
+function parseFontSize(value: object & Record<string, unknown>): number {
+  const size = 'editorFontSize' in value ? Number(value.editorFontSize) : Number.NaN
+  return Number.isFinite(size) ? Math.max(11, Math.min(22, Math.round(size))) : defaults.editorFontSize
+}
+function parseFontFamily(value: object & Record<string, unknown>): Preferences['editorFontFamily'] {
+  const family = 'editorFontFamily' in value ? value.editorFontFamily : undefined
+  return family === 'sans' || family === 'serif' ? family : 'mono'
+}
+function parseDraft(input: object & Record<'content', unknown>): Draft {
+  return {
+    content: requireText(input.content),
+    filePath: 'filePath' in input && typeof input.filePath === 'string' ? requireText(input.filePath, 32768) : undefined,
+    fingerprint: 'fingerprint' in input && typeof input.fingerprint === 'string' ? requireText(input.fingerprint, 128) : undefined,
+    savedContent: 'savedContent' in input && typeof input.savedContent === 'string' ? requireText(input.savedContent) : undefined,
+  }
 }

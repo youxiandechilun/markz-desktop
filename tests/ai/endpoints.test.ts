@@ -13,6 +13,7 @@ describe('provider endpoint contracts', () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'fixture-model' }] })))
     const models = await new AiTransport().listModels(provider)
     expect(models).toMatchObject([{ id: 'fixture-model' }])
+    // The documented discovery path is unchanged; fallbacks only run when it is missing.
     expect(fetch.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/models')
     const discoveryHeaders = new Headers(fetch.mock.calls[0]?.[1]?.headers)
     expect(discoveryHeaders.get('authorization')).toBe('Bearer test-only-key')
@@ -23,6 +24,21 @@ describe('provider endpoint contracts', () => {
     const messageHeaders = new Headers(fetch.mock.calls[1]?.[1]?.headers)
     expect(messageHeaders.get('x-api-key')).toBe('test-only-key')
     expect(messageHeaders.get('anthropic-version')).toBe('2023-06-01')
+  })
+
+  it('falls through to the next same-origin discovery path when one is missing', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'deepseek-flash' }] })))
+    expect(await new AiTransport().listModels(config('https://api.deepseek.com'))).toMatchObject([{ id: 'deepseek-flash' }])
+    expect(fetch.mock.calls.map(call => call[0])).toEqual(['https://api.deepseek.com/models', 'https://api.deepseek.com/v1/models'])
+    expect(new Headers(fetch.mock.calls[1]?.[1]?.headers).get('authorization')).toBe('Bearer test-only-key')
+  })
+
+  it('reports every attempted discovery path when none of them exist', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 404 }))
+    await expect(new AiTransport().listModels(config('https://api.deepseek.com'))).rejects.toMatchObject({ code: 'MODEL_LIST_UNAVAILABLE', status: 404 })
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
 
   it('keeps native Anthropic v1 and custom gateway prefixes without moving credentials', () => {

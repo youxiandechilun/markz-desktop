@@ -96,4 +96,77 @@ describe('AI transport', () => {
     const url = await customServer((_req, res) => { res.setHeader('content-type', 'text/event-stream'); res.flushHeaders(); setTimeout(() => res.end('data: [DONE]\n\n'), 60) })
     const controller = new AbortController(); setTimeout(() => controller.abort(), 8); const events = []; for await (const e of new AiTransport().stream({ prompt: 'x', signal: controller.signal }, config(url, 'responses'))) events.push(e); expect(events.some((e) => e.type === 'error')).toBe(true)
   })
+
+  it('probes with a usable token budget and without reasoning effort', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    const url = await customServer(async (req, res) => { let body = ''; for await (const chunk of req) body += String(chunk); bodies.push(JSON.parse(body) as Record<string, unknown>); res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: 'OK' } }] })) })
+    const base = config(url, 'chat-completions')
+    const result = await new AiTransport().testConnection({ ...base, capabilities: { ...base.capabilities, reasoning: true, reasoningEffort: 'high' } })
+    expect(result.ok).toBe(true); expect(bodies).toHaveLength(1)
+    expect(bodies[0]?.stream).toBe(false); expect(bodies[0]?.max_tokens).toBeGreaterThanOrEqual(256); expect(bodies[0]).not.toHaveProperty('reasoning_effort')
+  })
+
+  it('accepts a service that answers only on a stream', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    const url = await customServer(async (req, res) => {
+      let body = ''; for await (const chunk of req) body += String(chunk)
+      const payload = JSON.parse(body) as Record<string, unknown>; bodies.push(payload)
+      if (payload.stream === true) { res.setHeader('content-type', 'text/event-stream'); res.end('data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'); return }
+      res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: '' } }] }))
+    })
+    expect((await new AiTransport().testConnection(config(url, 'chat-completions'))).ok).toBe(true)
+    expect(bodies.map((body) => body.stream)).toEqual([false, true])
+  })
+
+  it('does not retry a probe that already failed on credentials', async () => {
+    let calls = 0
+    const url = await customServer((_req, res) => { calls++; res.statusCode = 401; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ error: { message: 'bad key' } })) })
+    const result = await new AiTransport().testConnection(config(url, 'chat-completions'))
+    expect(result.ok).toBe(false); if (!result.ok) expect(result.error.code).toBe('AUTH_FAILED'); expect(calls).toBe(1)
+  })
+
+  it('surfaces rate limiting as its own code', async () => {
+    const url = await customServer((_req, res) => { res.statusCode = 429; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ error: { message: 'too many requests' } })) })
+    const result = await new AiTransport().testConnection(config(url, 'chat-completions'))
+    expect(result.ok).toBe(false); if (!result.ok) expect(result.error.code).toBe('RATE_LIMITED')
+  })
+
+  it('returns an empty proposal instead of an error when a model streams only reasoning', async () => {
+    const url = await customServer((_req, res) => { res.setHeader('content-type', 'text/event-stream'); res.end('data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n') })
+    const result = await collectProposal(new AiTransport(), { prompt: 'x' }, config(url, 'chat-completions'))
+    expect(result.text).toBe(''); expect(result.truncated).toBe(false)
+  })
+
+  it('reports reasoning from every protocol as progress, never as proposal text', async () => {
+    const bodies: Record<AiProtocol, string> = {
+      'chat-completions': 'data: {"choices":[{"delta":{"reasoning_content":"think "}}]}\n\ndata: {"choices":[{"delta":{"reasoning":"more"}}]}\n\ndata: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+      responses: 'data: {"type":"response.reasoning_summary_text.delta","delta":"think "}\n\ndata: {"type":"response.output_text.delta","delta":"answer"}\n\ndata: {"type":"response.completed","response":{"status":"completed"}}\n\n',
+      'anthropic-messages': 'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"think "}}\n\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"answer"}}\n\ndata: {"type":"message_stop"}\n\n',
+    }
+    for (const protocol of ['chat-completions', 'responses', 'anthropic-messages'] as const) {
+      const url = await customServer((_req, res) => { res.setHeader('content-type', 'text/event-stream'); res.end(bodies[protocol]) })
+      const events = []; for await (const e of new AiTransport().stream({ prompt: 'x' }, config(url, protocol))) events.push(e)
+      const texts = (type: 'delta' | 'reasoning') => events.flatMap((e) => e.type === type ? [e.text] : [])
+      expect(texts('reasoning')).toEqual(protocol === 'chat-completions' ? ['think ', 'more'] : ['think '])
+      expect(texts('delta')).toEqual(['answer'])
+      expect(await collectProposal(new AiTransport(), { prompt: 'x' }, config(url, protocol))).toMatchObject({ text: 'answer', truncated: false })
+    }
+  })
+
+  it('delivers deltas while the response is still open instead of buffering the body', async () => {
+    let bodyEnded = false
+    const url = await customServer((_req, res) => {
+      res.setHeader('content-type', 'text/event-stream'); res.write('data: {"choices":[{"delta":{"content":"first"}}]}\n\n')
+      setTimeout(() => { bodyEnded = true; res.end('data: {"choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n') }, 60)
+    })
+    const deltas: Array<{ text: string; bodyEnded: boolean }> = []
+    for await (const event of new AiTransport().stream({ prompt: 'x' }, config(url, 'chat-completions'))) if (event.type === 'delta') deltas.push({ text: event.text, bodyEnded })
+    expect(deltas).toEqual([{ text: 'first', bodyEnded: false }, { text: 'second', bodyEnded: true }])
+  })
+
+  it('reads the context budget under the field names compatible providers use', async () => {
+    const url = await customServer((_req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ data: [{ id: 'a', context_length: 131072 }, { id: 'b', max_model_len: 8192 }, { id: 'c', context_window: 64000 }, { id: 'd' }] })) })
+    const models = await new AiTransport().listModels(config(url, 'chat-completions'))
+    expect(models.map((model) => model.contextWindow)).toEqual([131072, 8192, 64000, undefined])
+  })
 })

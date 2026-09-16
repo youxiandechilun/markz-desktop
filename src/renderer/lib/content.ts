@@ -28,7 +28,6 @@ function greet(name: string) {
 | --- | --- |
 | Ctrl + S | 保存文档 |
 | Ctrl + F | 查找与替换 |
-| Ctrl + K | 打开命令 |
 
 ## 接下来
 

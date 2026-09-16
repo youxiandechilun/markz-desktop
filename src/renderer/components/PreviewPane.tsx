@@ -1,4 +1,4 @@
-import { CheckCircle, Copy, Eye, LinkSimple } from '@phosphor-icons/react'
+import { Copy, Eye } from '@phosphor-icons/react'
 import type { MarkdownDocument } from '../lib/markdown'
 import type { Locale } from '../types'
 
@@ -11,7 +11,7 @@ interface PreviewPaneProps {
 }
 
 export function PreviewPane({ html, document, onCopy, onNavigate, locale }: PreviewPaneProps) {
-  const ui = locale === 'zh-CN' ? { preview: '实时预览', copy: '复制 HTML', open: '打开预览', compiled: '本地编译', mapped: '源码已映射 · 可以编辑' } : { preview: 'Live preview', copy: 'Copy rendered HTML', open: 'Open preview', compiled: 'Compiled locally', mapped: 'Source mapped · Ready to edit' }
+  const ui = locale === 'zh-CN' ? { preview: '实时预览', copy: '复制 HTML', open: '打开预览', compiled: '本地编译' } : { preview: 'Live preview', copy: 'Copy rendered HTML', open: 'Open preview', compiled: 'Compiled locally' }
   return (
     <section className="preview-pane" aria-label={locale === 'zh-CN' ? '文档预览' : 'Rendered preview'}>
       <div className="pane-heading">
@@ -22,7 +22,6 @@ export function PreviewPane({ html, document, onCopy, onNavigate, locale }: Prev
       </div>
       <article className="markdown-preview">
         <div className="preview-content" onDoubleClick={event => { const target = event.target; if (target instanceof HTMLElement) { const line = target.closest('[data-source-line]')?.getAttribute('data-source-line'); if (line) onNavigate(Number(line)) } }} dangerouslySetInnerHTML={{ __html: html }} />
-        <div className="preview-footer"><CheckCircle size={14} weight="fill" /> {ui.mapped} <LinkSimple size={13} /></div>
       </article>
     </section>
   )

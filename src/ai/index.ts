@@ -15,6 +15,8 @@ export async function collectProposal(client: AiTransport, request: AiRequestCon
   let text = ''; let finishReason: string | undefined; let truncated = false
   for await (const event of client.stream(request, config)) {
     if (event.type === 'delta') { text += event.text; onDelta?.(event.text) }
+    // Reasoning is progress, not document content, so it never enters the proposal.
+    else if (event.type === 'reasoning') continue
     else if (event.type === 'done') { finishReason = event.finishReason; truncated = event.truncated }
     else throw event.error
   }

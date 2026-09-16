@@ -1,6 +1,6 @@
 {
   "name": "markz-desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A beautiful, Markdown native Electron editor and SDK.",
   "author": "Markz",
@@ -16,6 +16,7 @@
     "package:portable": "pnpm build && electron-builder --win --config electron-builder.portable.yml",
     "package:nsis": "pnpm build && electron-builder --win --config electron-builder.nsis.yml",
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
+    "format:smoke": "node scripts/format-desktop-smoke.mjs",
     "ai:smoke": "node scripts/ai-desktop-smoke.mjs",
     "settings:smoke": "node scripts/settings-desktop-smoke.mjs",
     "sdk:smoke": "node scripts/sdk-dom-test.mjs",
