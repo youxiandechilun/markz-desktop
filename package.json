@@ -3,8 +3,8 @@
   "version": "0.1.2",
   "private": true,
   "description": "A beautiful, Markdown native Electron editor and SDK.",
-  "author": "Markz",
-  "license": "UNLICENSED",
+  "author": "youxiandechilun",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./out/main/main.js",
   "scripts": {
