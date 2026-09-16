@@ -1,0 +1,26 @@
+node_modules/
+out/
+release/
+logs/
+data/
+*.log
+
+# build output
+dist/
+dist-sdk/
+dist-sdk-test/
+*.tsbuildinfo
+
+# generated smoke-test / runtime artifacts
+artifacts/
+
+# electron runtime archives and unpacked binaries
+*.zip
+electron-v*-win32-x64/
+
+# editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

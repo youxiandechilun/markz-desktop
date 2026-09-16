@@ -1,0 +1,23 @@
+appId: com.markz.editor
+productName: Markz
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - build/icon.png
+  - build/icon.ico
+asar: true
+compression: maximum
+electronDist: node_modules/.pnpm/electron@37.10.3/node_modules/electron/dist
+win:
+  signAndEditExecutable: false
+  icon: build/icon.ico
+  executableName: Markz
+  target:
+    - target: portable
+      arch: [x64]
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

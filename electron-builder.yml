@@ -1,0 +1,33 @@
+appId: com.markz.editor
+productName: Markz
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - build/icon.png
+  - build/icon.ico
+asar: true
+compression: maximum
+electronDist: node_modules/.pnpm/electron@37.10.3/node_modules/electron/dist
+win:
+  signAndEditExecutable: false
+  icon: build/icon.ico
+  target:
+    - target: portable
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
+  executableName: Markz
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Markz
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
