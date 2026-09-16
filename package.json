@@ -20,6 +20,7 @@
     "ai:smoke": "node scripts/ai-desktop-smoke.mjs",
     "settings:smoke": "node scripts/settings-desktop-smoke.mjs",
     "sdk:smoke": "node scripts/sdk-dom-test.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

@@ -21,6 +21,8 @@ Electron + TypeScript 的 Markdown 桌面编辑器，同时提供可嵌入的 Va
 
 AI 部分还有很多问题，后面会继续更新。
 
+![Markz Desktop 分栏视图](assets/screenshots/01-split-light.png)
+
 ---
 
 ## 技术栈
@@ -110,7 +112,15 @@ src/shared/      主进程与渲染层共享的类型契约
 - 四种视图模式：源码 / 内联（live preview）/ 分栏 / 阅读；
 - 格式工具栏 14 个命令：粗体、斜体、删除线、行内代码、链接、三级标题、引用、无序 / 有序 / 任务列表、代码块、分隔线、表格。每个命令都是「文档 + 选区」的纯函数，返回一处编辑，且是**可切换**的——对已加粗的选区再点一次会还原；
 - 内联模式只隐藏选区之外的标记（`**`、`#`、反引号），光标所在的语法永远保持可见可编辑；
-- 命令面板，以及打开 / 保存 / 撤销等快捷键。
+- 快捷键：新建 `Ctrl+N`、打开 `Ctrl+O`、保存 `Ctrl+S`、另存为 `Ctrl+Shift+S`、AI 设置 `Ctrl+,`，编辑器内还有 `Ctrl+F` 查找。
+
+源码模式（标记全部可见，上方是格式工具栏）：
+
+![源码模式](assets/screenshots/03-source-light.png)
+
+格式工具栏的 14 个命令与字号、字体、自动换行设置：
+
+![格式工具栏](assets/screenshots/04-format-bar.png)
 
 ### 预览与导出
 
@@ -118,6 +128,10 @@ src/shared/      主进程与渲染层共享的类型契约
 - 安全渲染：rehype-sanitize 白名单，原始 HTML 只留在源文里、不进预览，不安全的链接协议会被剥掉；
 - 输出带源码位置映射（`dataSourceLine` / `dataSourceOffset`），预览可以反向定位到源码行；
 - 导出独立 HTML。
+
+内联模式把标记收起来，按源码排版直接阅读：
+
+![内联预览](assets/screenshots/02-live-light.png)
 
 ### 文件与工作区
 
@@ -139,6 +153,10 @@ src/shared/      主进程与渲染层共享的类型契约
 - 连接测试逐个模型探测，行内显示「测试中 / 可用 / 失败」徽标，「测试全部模型」给出汇总；遇到鉴权、超时、404 这类配置级失败立即停止，不会让每个模型都等满超时；
 - 密钥不明文落盘，界面与日志里一律打码。
 
+模型列表来自「获取模型」，每个模型单独配置能力，也可以逐个测试连通性（截图为本地模拟服务，因此地址是 localhost）：
+
+![AI 服务设置](assets/screenshots/07-ai-settings.png)
+
 ### AI 写作
 
 - 提案锚定在选区（或光标位置）上，携带 `from / to / expectedText / revision`，应用前做三重校验；
@@ -148,6 +166,10 @@ src/shared/      主进程与渲染层共享的类型契约
 - 模型只返回推理、没有正文时，不留下一个永远无法应用的空白提案，直接提示换模型或检查推理设置；
 - 差异查看、应用 / 撤销；生成过程中随时可以取消，取消不会改动文档。
 - 已在真实 DeepSeek 端点上跑通完整链路：`anthropic-messages` 协议 + `deepseek-v4-pro`，多次流式生成正常结束（实测单次 8–53 秒）。
+
+提案锚定在选区上，右侧列出将被替换的原文与生成结果，确认后才会写入：
+
+![AI 写作提案](assets/screenshots/08-ai-proposal.png)
 
 ### SDK
 
@@ -183,6 +205,14 @@ import { Editor } from './src/sdk/react'
 
 中文 / English 双语（默认中文），浅色 / 深色主题，编辑器字号、字体族、自动换行、自动保存可调。弹窗支持 Escape 关闭、焦点恢复和 Tab 循环。
 
+深色主题：
+
+![深色主题](assets/screenshots/05-split-dark.png)
+
+英文界面（同一份文档，界面语言独立于文档内容）：
+
+![英文界面](assets/screenshots/06-split-dark-en.png)
+
 ## 开发
 
 ```powershell
@@ -209,7 +239,10 @@ pnpm format:smoke      # 格式工具栏
 pnpm ai:smoke          # AI 提案 / 应用 / 冲突 / 取消
 pnpm settings:smoke    # 设置页与模型列表
 pnpm sdk:smoke         # SDK
+pnpm screenshots       # 重新生成本 README 里的截图
 ```
+
+`pnpm screenshots` 会启动真实窗口，用一个本地模拟服务当 AI 提供方，把 8 张截图写回 `assets/screenshots/`。每一张在拍摄前都会断言界面处于预期状态，所以重跑不会产出空白或半加载的图。
 
 打包：
 
@@ -234,9 +267,10 @@ src/ai/            协议层：端点推导、配置校验、流式传输
 src/sdk/           Vanilla / React SDK，live preview，Widget
 src/renderer/      React 界面：编辑器、预览、大纲、AI 面板、设置
 src/shared/        跨进程类型契约
-scripts/           冒烟测试、基准、构建辅助
+scripts/           冒烟测试、截图脚本、基准、构建辅助
 tests/             AI 协议测试
 examples/          SDK 最小示例
+assets/screenshots/ 本 README 使用的截图（由 pnpm screenshots 生成）
 docs/              需求规格说明书、SDK 文档、验证记录
 ```
 
